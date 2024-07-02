@@ -121,7 +121,7 @@ if (process.argv.length > 2) {
     try {
         await page.waitForFunction(
             'document.querySelector(".dados-cliente")'
-            , { timeout: 5000 });
+            , { timeout: 10000 });
     } catch {
         console.error('        cnpj:', 'possui restrições');
         console.log('- - -');
