@@ -9,6 +9,11 @@ const url = 'https://dev.vivo.com.br/para-empresas/produtos-e-servicos/servicos-
 let browser;
 let flag = false;
 
+argCNPJ = '44861078000176';
+if (process.argv.length > 2) {
+    argCNPJ = process.argv[2];
+}
+
 (async () => {
     browser = await puppeteer.launch({
         headless: true,
@@ -57,12 +62,15 @@ let flag = false;
             if (
                 req.url().includes('/bin/vivo-portal/service-layer/return-ip') ||
                 req.url().includes('/bin/vivo-portal/service-layer/transational-topaz/v1/analytics') ||
-                req.url().includes('/corporateManagement/v2/register/') || req.url().includes('/opportunity/v2/signit') ||
+                req.url().includes('/corporateManagement/v2/register/') ||
+                req.url().includes('/opportunity/v2/signit') ||
                 req.url().includes('/bin/vivo-portal/service-layer/send-email')
             ) {
                 try {
                     console.timeLog('    time', '| request: ' + req.url());
                 } catch { }
+            } else if (req.url().includes('/corporateManagement/v2/failover/')) {
+                console.log('        request: ' + req.url());
             }
             req.continue();
         }
@@ -86,19 +94,57 @@ let flag = false;
     await delay(2000);
 
     console.log('[identificação]');
-    console.log('    cnpj: ' + '44861078000176');
+    console.log('    cnpj: ' + argCNPJ);
     const cnpj = await page.$('#input-cnpj');
-    await cnpj.type('44861078000176', { delay: 100 });
+    await cnpj.type(argCNPJ, { delay: 100 });
     await page.click('.title-company');
 
-    const waitFailover = page.waitForResponse((response) => {
-        return response.url().includes('/corporateManagement/v2/failover/') && response.status() == 200;
+    let httpStatus;
+
+    const waitFailover = page.waitForResponse((res) => {
+        if (res.url().includes('/corporateManagement/v2/failover/')) {
+            try {
+                console.log('        response: ' + res.url() + ' | ' + res.status());
+            } catch { }
+        }
+        httpStatus = res.status();
+        return res.url().includes('/corporateManagement/v2/failover/') && res.request().method() == 'GET' && res.status() >= 200;
     }, { timeout: 30000 });
     await waitFailover;
 
-    await page.waitForFunction(
-        'document.querySelector("#select-society-type > .selected.small > .selected--value > span").innerText != ""'
-    );
+    if (httpStatus != 200) {
+        console.error('        api failover:', 'ocorreu erro');
+        console.log('- - -');
+        return;
+    }
+
+    try {
+        await page.waitForFunction(
+            'document.querySelector(".dados-cliente")'
+            , { timeout: 5000 });
+    } catch {
+        console.error('        cnpj:', 'possui restrições');
+        console.log('- - -');
+        return;
+    }
+
+    try {
+        await page.waitForFunction(
+            'document.querySelector("#select-society-type > .selected.small > .selected--value > span").innerText != ""'
+        );
+    } catch {
+        console.error('        tipo sociedade:', 'não identificado');
+        console.log('- - -');
+        return;
+    }
+
+    const complementElem = await page.$('.address-complement > .input-default > .form__input__control > .form__input__float > .form__input__container > input');
+    const complement = await page.evaluate(el => el.value, complementElem);
+    if (complement.length > 10) {
+        console.error('        complemento endereço:', 'com mais de 10 craracteres');
+        console.log('- - -');
+        return;
+    }
 
     await delay(2500);
 
@@ -140,24 +186,38 @@ let flag = false;
 
     console.time('    time');
 
-    const waitSignit = page.waitForResponse(async (res) => {
+    const waitRegister = page.waitForResponse(async (res) => {
         if (
-            res.url().includes('/bin/vivo-portal/service-layer/return-ip') ||
-            res.url().includes('/bin/vivo-portal/service-layer/transational-topaz/v1/analytics') ||
-            res.url().includes('/corporateManagement/v2/register/') || res.url().includes('/opportunity/v2/signit') ||
-            res.url().includes('/bin/vivo-portal/service-layer/send-email')
+            res.url().includes('/bin/vivo-portal/service-layer/') ||
+            res.url().includes('/corporateManagement/v2/register/')
         ) {
             try {
                 console.timeLog('    time', '| response: ' + res.url() + ' | ' + res.status());
             } catch { }
         }
-        return res.url().includes('/opportunity/v2/signit') && res.status() == 201;
+        httpStatus = res.status();
+        return res.url().includes('/corporateManagement/v2/register/') && res.status() > 200;
     }, { timeout: 180000 });
-    await waitSignit;
+    await waitRegister;
+
+    if (httpStatus != 201) {
+        console.error('        api register:', 'ocorreu erro');
+        console.log('- - -');
+        return;
+    }
+
+    const waitSignIt = page.waitForResponse(async (res) => {
+        if (res.url().includes('/opportunity/v2/signit')) {
+            try {
+                console.timeLog('    time', '| response: ' + res.url() + ' | ' + res.status() + ' | ' + await res.text());
+            } catch { }
+        }
+        return res.url().includes('/opportunity/v2/signit') && res.status() > 200;
+    }, { timeout: 180000 });
+    await waitSignIt;
 
     console.timeEnd('    time');
-
-    // await delay(5000);
+    console.log('- - -');
 })()
     .catch(err => console.error(err))
     .finally(() => browser?.close()); // comment this line when connect to existing browser instance
