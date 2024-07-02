@@ -114,17 +114,17 @@ if (process.argv.length > 2) {
 
     if (httpStatus != 200) {
         console.error('        api failover:', 'ocorreu erro');
-        console.log('- - -');
+        console.log(); console.log('- - -'); console.log();
         return;
     }
 
     try {
         await page.waitForFunction(
             'document.querySelector(".dados-cliente")'
-            , { timeout: 10000 });
+            , { timeout: 30000 });
     } catch {
         console.error('        cnpj:', 'possui restrições');
-        console.log('- - -');
+        console.log(); console.log('- - -'); console.log();
         return;
     }
 
@@ -134,7 +134,7 @@ if (process.argv.length > 2) {
         );
     } catch {
         console.error('        tipo sociedade:', 'não identificado');
-        console.log('- - -');
+        console.log(); console.log('- - -'); console.log();
         return;
     }
 
@@ -142,7 +142,7 @@ if (process.argv.length > 2) {
     const complement = await page.evaluate(el => el.value, complementElem);
     if (complement.length > 10) {
         console.error('        complemento endereço:', 'com mais de 10 craracteres');
-        console.log('- - -');
+        console.log(); console.log('- - -'); console.log();
         return;
     }
 
@@ -202,7 +202,7 @@ if (process.argv.length > 2) {
 
     if (httpStatus != 201) {
         console.error('        api register:', 'ocorreu erro');
-        console.log('- - -');
+        console.log(); console.log('- - -'); console.log();
         return;
     }
 
@@ -217,7 +217,7 @@ if (process.argv.length > 2) {
     await waitSignIt;
 
     console.timeEnd('    time');
-    console.log('- - -');
+    console.log(); console.log('- - -'); console.log();
 })()
     .catch(err => console.error(err))
     .finally(() => browser?.close()); // comment this line when connect to existing browser instance
